@@ -24,7 +24,7 @@ import transformers
 from accelerate import PartialState
 from accelerate.logging import get_logger
 from torch.distributed.fsdp import FullStateDictConfig, FullyShardedDataParallel, StateDictType
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, LlamaForCausalLM, LlamaConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from trl import SFTTrainer
 
@@ -36,6 +36,22 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
 logger = get_logger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+
+def setup_model(
+        vocab_size: int,
+):
+    llama_config = LlamaConfig(
+        vocab_size=vocab_size,
+        head_dim=128,
+        hidden_size=128,
+        intermediate_size=8192,
+        num_hidden_layers=24,
+        num_attention_heads=32,
+        tie_word_embeddings=True
+    )
+    model = LlamaForCausalLM(llama_config)
+
+    return model
 
 @dataclass
 class ModelArguments:
@@ -49,25 +65,24 @@ class TrainingArguments(transformers.TrainingArguments):
     do_train: bool = True
     do_eval: bool = True
     save_strategy: str = "no"
-    max_seq_length: int = 1024
+    max_length: int = 1024
     optim: str = "adamw_torch"
     learning_rate: float = 1e-5
     lr_scheduler_type: str = "cosine"
     dataloader_drop_last: bool = True
     dataset_num_proc: int = 8
-    dataset_batch_size: int = 500
+    #dataset_batch_size: int = 500
     bf16: bool = True
     tf32: bool = True
 
 
 def llama_text_format_func(sample):
-    texts = []
-    for p, q, r in zip(sample["system_prompt"], sample["question"], sample["response"]):
-        if not p:
-            texts.append(f"<s>[INST] {q}[/INST]\n{r}</s>")
-        else:
-            texts.append(f"<s>[INST] <<SYS>>{p}<</SYS>>\n{q}[/INST]\n{r}</s>")
-    return texts
+    p, q, r = sample.get("system_prompt"), sample["question"], sample["response"]
+    if not p:
+        text = (f"<s>[INST]   {q}[/INST]\n{r}</s>")
+    else:
+        text = (f"<s>[INST] <<SYS>>{p}<</SYS>>\n{q}[/INST]\n{r}</s>")
+    return text
 
 
 def save_model(trainer: transformers.Trainer):
@@ -114,6 +129,10 @@ def train():
     parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments))
     model_args, training_args = parser.parse_args_into_dataclasses()
 
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '12355'
+    torch.distributed.init_process_group("gloo", rank=0, world_size=1)
+
     # Set total batch size across all ranks to equal 64
     total_batch_size = 64
     num_accum_steps = total_batch_size / (
@@ -147,10 +166,14 @@ def train():
         logger.info("Model loaded.")
     else:
         logger.info("Loading student model...")
-        student_model = transformers.AutoModelForCausalLM.from_pretrained(
-            model_args.student_name_or_path,
-            device_map=PartialState().process_index,
+        student_model = setup_model(
+            vocab_size=tokenizer.vocab_size,
         )
+
+        # student_model = transformers.AutoModelForCausalLM.from_pretrained(
+        #     model_args.student_name_or_path,
+        #     device_map=PartialState().process_index,
+        # )
         logger.info("Student loaded.")
 
         logger.info("Loading teacher model and converting to Distillation model...")
