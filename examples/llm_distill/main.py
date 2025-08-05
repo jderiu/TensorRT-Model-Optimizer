@@ -175,9 +175,9 @@ def train():
     )
 
     logger.info("Loading dataset...")
-    if data_args.dataset_type == "HF":
+    if data_args.data_type == "HF":
         dset = datasets.load_dataset(data_args.dataset_name, split="train")
-    elif data_args.dataset_type == "JSON":
+    elif data_args.data_type == "JSON":
         dset = datasets.load_dataset(
             "json",
             data_files=data_args.dataset_name,
