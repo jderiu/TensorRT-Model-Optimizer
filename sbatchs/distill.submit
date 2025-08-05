@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --time=1200
-#SBATCH --job-name=lmic
+#SBATCH --job-name=distill_llama
 #SBATCH --ntasks=1
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:4
