@@ -59,6 +59,12 @@ def setup_model(
 
     return model
 
+
+@dataclass
+class DataArguments:
+    dataset_name: str | None = "Open-Orca/OpenOrca"
+    data_type: str | None = "HF"  # HF or JSON
+
 @dataclass
 class ModelArguments:
     teacher_name_or_path: str | None = None
@@ -141,8 +147,8 @@ class LMLogitsLoss(mtd.LogitsDistillationLoss):
 
 
 def train():
-    parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments))
-    model_args, training_args = parser.parse_args_into_dataclasses()
+    parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments, DataArguments))
+    model_args, training_args, data_args = parser.parse_args_into_dataclasses()
 
     #os.environ['MASTER_ADDR'] = 'localhost'
     #os.environ['MASTER_PORT'] = '12355'
@@ -169,7 +175,16 @@ def train():
     )
 
     logger.info("Loading dataset...")
-    dset = datasets.load_dataset("Open-Orca/OpenOrca", split="train")
+    if data_args.dataset_type == "HF":
+        dset = datasets.load_dataset(data_args.dataset_name, split="train")
+    elif data_args.dataset_type == "JSON":
+        dset = datasets.load_dataset(
+            "json",
+            data_files=data_args.dataset_name,
+            split="train",
+        )
+    else:
+        raise ValueError(f"Unsupported dataset type: {data_args.dataset_type}")
     dset_splits = dset.train_test_split(train_size=25600, test_size=1700, seed=420)
     dset_train, dset_eval = dset_splits["train"], dset_splits["test"]
     logger.info("Dataset loaded.")

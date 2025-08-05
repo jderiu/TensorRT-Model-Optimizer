@@ -34,4 +34,4 @@ export WANDB_DIR='/scratch/wandb/'
 
 cd /cluster/home/deri/TensorRT-Model-Optimizer/examples/llm_distill
 
-accelerate launch  --multi_gpu --mixed_precision  bf16 main.py --teacher_name_or_path meta-llama/Llama-3.2-1B --student_name_or_path meta-llama/Llama-3.2-1B --output_dir ./llama2-distill --logging_steps 5 --max_steps 200 --max_length 256 --per_device_train_batch_size 8 --per_device_eval_batch_size 4 --gradient_checkpointing False
+accelerate launch  --multi_gpu --mixed_precision  bf16 main.py --teacher_name_or_path meta-llama/Llama-3.2-1B --student_name_or_path meta-llama/Llama-3.2-1B --output_dir ./llama2-distill --logging_steps 5 --max_steps 200 --max_length 256 --per_device_train_batch_size 8 --per_device_eval_batch_size 4 --gradient_checkpointing False --dataset_name /cluster/home/deri/exp_outs/lmic/distillation/enwiki9/lamma-3p2-1b/c256/trainset.jsonl --dataset_type JSON
