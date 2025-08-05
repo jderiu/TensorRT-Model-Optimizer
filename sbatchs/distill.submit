@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --account=cai_nlp
 #SBATCH --mem=32G
-#SBATCH --partition=gpu
+#SBATCH --partition=gpu_top
 #SBATCH --output=/cluster/home/deri/log/lmic/distill/%j_%N__ex06_venv.out
 #SBATCH --error=/cluster/home/deri/log/lmic/distill/%j_%N__ex06_venv.err
 
