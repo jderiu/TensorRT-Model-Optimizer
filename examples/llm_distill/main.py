@@ -64,6 +64,7 @@ def setup_model(
 class DataArguments:
     dataset_name: str | None = "Open-Orca/OpenOrca"
     data_type: str | None = "HF"  # HF or JSON
+    total_batch_size: int = 64 #add this here since training args cannot handle it
 
 @dataclass
 class ModelArguments:
@@ -78,7 +79,6 @@ class TrainingArguments(transformers.TrainingArguments):
     do_eval: bool = True
     save_strategy: str = "no"
     max_length: int = 1024
-    total_batch_size: int = 64
     optim: str = "adamw_torch"
     learning_rate: float = 1e-5
     lr_scheduler_type: str = "cosine"
@@ -180,7 +180,7 @@ def train():
     else:
         world_size = 1
 
-    total_batch_size = training_args.total_batch_size
+    total_batch_size = data_args.total_batch_size
     num_accum_steps = total_batch_size / (
         training_args.per_device_train_batch_size * world_size
     )
