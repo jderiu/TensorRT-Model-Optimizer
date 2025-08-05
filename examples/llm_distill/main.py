@@ -96,6 +96,8 @@ def llama_text_format_func(sample):
         text = (f"<s>[INST] <<SYS>>{p}<</SYS>>\n{q}[/INST]\n{r}</s>")
     return text
 
+def llama_test_func(sample):
+    return sample["text"]
 
 def save_model(trainer: transformers.Trainer):
     """Dumps model and ModelOpt states to disk."""
@@ -238,7 +240,7 @@ def train():
         training_args,
         train_dataset=dset_train,
         eval_dataset=dset_eval,
-        formatting_func=llama_text_format_func,
+        formatting_func=llama_test_func,
         processing_class=tokenizer,
     )
     if isinstance(trainer, KDSFTTrainer):
