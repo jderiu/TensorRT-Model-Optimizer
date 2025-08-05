@@ -25,7 +25,7 @@ source /scratch/venvs/$env_name/bin/activate
 uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 uv pip install git+https://github.com/huggingface/transformers.git
 uv pip install -U "nvidia-modelopt[all]"
-uv pip install sentencepiece bitsandbytes trl
+uv pip install sentencepiece bitsandbytes trl python-dotenv
 
 export PYTHONPATH="/cluster/home/deri/hf_lmic/src:$PYTHONPATH"
 export PYTHONPATH="/cluster/home/deri/hf_lmic:$PYTHONPATH"
