@@ -99,7 +99,7 @@ def llama_text_format_func(sample):
 def llama_test_func(sample):
     return sample["text"]
 
-def save_model(trainer: transformers.Trainer):
+def save_model_old(trainer: transformers.Trainer):
     """Dumps model and ModelOpt states to disk."""
     model = trainer.accelerator.unwrap_model(trainer.model)
     save_cfg = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
@@ -111,6 +111,22 @@ def save_model(trainer: transformers.Trainer):
             # ModelOpt state
             logger.info(f"Saving modelopt state to {output_dir}")
             torch.save(mto.modelopt_state(model), f"{output_dir}/modelopt_state.pt")
+
+
+def save_model(trainer: transformers.Trainer):
+    """Dumps model and ModelOpt states to disk."""
+    if not trainer.args.should_save:
+        return
+
+    model = trainer.accelerator.unwrap_model(trainer.model)
+    output_dir = trainer.args.output_dir
+
+    # Let the trainer handle FSDP state dict collection
+    trainer.save_model(output_dir)
+
+    # Save ModelOpt state
+    logger.info(f"Saving modelopt state to {output_dir}")
+    torch.save(mto.modelopt_state(model), f"{output_dir}/modelopt_state.pt")
 
 
 class KDSFTTrainer(SFTTrainer):
