@@ -24,12 +24,18 @@ import transformers
 from accelerate import PartialState
 from accelerate.logging import get_logger
 from torch.distributed.fsdp import FullStateDictConfig, FullyShardedDataParallel, StateDictType
-from transformers import AutoTokenizer, LlamaForCausalLM, LlamaConfig
+from transformers import AutoTokenizer, LlamaForCausalLM, LlamaConfig, BitsAndBytesConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from trl import SFTTrainer
 
 import modelopt.torch.distill as mtd
 import modelopt.torch.opt as mto
+from dotenv import load_dotenv
+
+load_dotenv()
+
+BASE_DIR = os.getenv('BASE_DIR')
+HF_TOKEN = os.getenv('HF_TOKEN')
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
 
@@ -114,9 +120,18 @@ class KDSFTTrainer(SFTTrainer):
 
 
 def _teacher_factory(model_name_or_path):
+    quantization_config = BitsAndBytesConfig(
+        load_in_4bit=True,  # enable 4-bit quantization
+        bnb_4bit_quant_type='nf4',  # information theoretically optimal dtype for normally distributed weights
+        bnb_4bit_use_double_quant=True,  # quantize quantized weights //insert xzibit meme
+        bnb_4bit_compute_dtype=torch.bfloat16  # optimized fp format for ML
+    )
+
     return transformers.AutoModelForCausalLM.from_pretrained(
         model_name_or_path,
         device_map=PartialState().process_index,
+        quantization_config=quantization_config,
+        token=HF_TOKEN,
     )
 
 
@@ -129,14 +144,20 @@ def train():
     parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments))
     model_args, training_args = parser.parse_args_into_dataclasses()
 
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'
-    torch.distributed.init_process_group("gloo", rank=0, world_size=1)
+    #os.environ['MASTER_ADDR'] = 'localhost'
+    #os.environ['MASTER_PORT'] = '12355'
+    #torch.distributed.init_process_group("gloo", rank=0, world_size=1)
 
     # Set total batch size across all ranks to equal 64
+    # With this:
+    if torch.distributed.is_initialized():
+        world_size = torch.distributed.get_world_size()
+    else:
+        world_size = 1
+
     total_batch_size = 64
     num_accum_steps = total_batch_size / (
-        training_args.per_device_train_batch_size * torch.distributed.get_world_size()
+        training_args.per_device_train_batch_size * world_size
     )
     if not num_accum_steps.is_integer():
         raise ValueError(
@@ -155,19 +176,19 @@ def train():
 
     logger.info("Loading tokenizer...")
     model_path = model_args.teacher_name_or_path or model_args.student_name_or_path
-    tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
+    tokenizer = AutoTokenizer.from_pretrained(model_path, token=HF_TOKEN, use_fast=True)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
     logger.info("Tokenizer loaded.")
 
     if model_args.single_model:
         logger.info("Loading single model only...")
-        model = _teacher_factory(model_path)
+        model = _teacher_factory(model_path, HF_TOKEN)
         logger.info("Model loaded.")
     else:
         logger.info("Loading student model...")
         student_model = setup_model(
-            vocab_size=tokenizer.vocab_size,
+            vocab_size=len(tokenizer),
         )
 
         # student_model = transformers.AutoModelForCausalLM.from_pretrained(
