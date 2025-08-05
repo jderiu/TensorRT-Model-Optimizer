@@ -3,13 +3,13 @@
 #SBATCH --job-name=lmic
 #SBATCH --ntasks=1
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=8
 #SBATCH --account=cai_nlp
 #SBATCH --mem=32G
 #SBATCH --partition=gpu
-#SBATCH --output=/cluster/home/deri/log/lmic/%j_%N__ex06_venv.out
-#SBATCH --error=/cluster/home/deri/log/lmic/%j_%N__ex06_venv.err
+#SBATCH --output=/cluster/home/deri/log/lmic/distill/%j_%N__ex06_venv.out
+#SBATCH --error=/cluster/home/deri/log/lmic/distill/%j_%N__ex06_venv.err
 
 cd /cluster/home/deri/hf_lmic
 
