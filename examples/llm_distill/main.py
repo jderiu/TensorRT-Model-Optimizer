@@ -25,13 +25,14 @@ from accelerate import PartialState
 from accelerate.logging import get_logger
 from torch.distributed.fsdp import FullStateDictConfig, FullyShardedDataParallel, StateDictType
 from transformers import AutoTokenizer, LlamaForCausalLM, LlamaConfig, BitsAndBytesConfig
+from transformers.trainer_utils import SaveStrategy
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from trl import SFTTrainer
 
 import modelopt.torch.distill as mtd
 import modelopt.torch.opt as mto
 from dotenv import load_dotenv
-
+from umap import UMAP
 load_dotenv()
 
 BASE_DIR = os.getenv('BASE_DIR')
@@ -45,6 +46,7 @@ logging.basicConfig(level=logging.INFO)
 
 def setup_model(
         vocab_size: int,
+        model_path: str,
 ):
     llama_config = LlamaConfig(
         vocab_size=vocab_size,
@@ -56,6 +58,14 @@ def setup_model(
         tie_word_embeddings=True
     )
     model = LlamaForCausalLM(llama_config)
+
+    E = reduced_embeddings(model_path=model_path, hidden_size=llama_config.hidden_size)
+    #E = torch.rand(model.get_input_embeddings().weight.size(), dtype=torch.float16)
+    model.get_input_embeddings().weight.data.copy_(E)
+    model.get_output_embeddings().weight.data.copy_(E)
+
+    #model.set_input_embeddings(torch.nn.Embedding.from_pretrained(E, freeze=True))
+    #model.set_output_embeddings(torch.nn.Linear(llama_config.hidden_size, llama_config.vocab_size, bias=False))
 
     return model
 
@@ -123,6 +133,21 @@ def save_model(trainer: transformers.Trainer):
     torch.save(mto.modelopt_state(model), f"{output_dir}/modelopt_state.pt")
 
 
+def reduced_embeddings(model_path, hidden_size=128):
+    E = _teacher_factory(model_path).get_input_embeddings().weight
+    umap_model = UMAP(
+        n_components=hidden_size,
+        n_neighbors=15,
+        min_dist=0.1,
+        metric='cosine',
+        verbose=True,
+    )
+
+    reduced_embeddings = umap_model.fit_transform(E.detach().cpu().numpy())
+    reduced_embeddings = torch.tensor(reduced_embeddings, dtype=E.dtype, device=E.device)
+    return reduced_embeddings
+
+
 class KDSFTTrainer(SFTTrainer):
     def compute_loss(self, model, inputs, *args, **kwargs):
         if not model.training:
@@ -135,6 +160,44 @@ class KDSFTTrainer(SFTTrainer):
             self.compute_loss_func = _compute_loss_func
 
         return loss
+
+    def _maybe_log_save_evaluate(
+        self, tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval, start_time, learning_rate=None
+    ):
+        if self.control.should_log and self.state.global_step > self._globalstep_last_logged:
+            logs: dict[str, float] = {}
+
+            # all_gather + mean() to get average loss over all processes
+            tr_loss_scalar = self._nested_gather(tr_loss).mean().item()
+
+            # reset tr_loss to zero
+            tr_loss -= tr_loss
+
+            logs["loss"] =  round(tr_loss_scalar /  (self.args.gradient_accumulation_steps*(self.state.global_step - self._globalstep_last_logged)), 4)
+            if grad_norm is not None:
+                logs["grad_norm"] = grad_norm.item() if isinstance(grad_norm, torch.Tensor) else grad_norm
+            if learning_rate is not None:
+                logs["learning_rate"] = learning_rate
+            else:
+                logs["learning_rate"] = self._get_learning_rate()
+
+            self._total_loss_scalar += tr_loss_scalar
+            self._globalstep_last_logged = self.state.global_step
+            self.store_flos()
+
+            self.log(logs, start_time)
+
+        metrics = None
+        if self.control.should_evaluate:
+            metrics = self._evaluate(trial, ignore_keys_for_eval)
+            is_new_best_metric = self._determine_best_metric(metrics=metrics, trial=trial)
+
+            if self.args.save_strategy == SaveStrategy.BEST:
+                self.control.should_save = is_new_best_metric
+
+        if self.control.should_save:
+            self._save_checkpoint(model, trial)
+            self.control = self.callback_handler.on_save(self.args, self.state, self.control)
 
 
 def _teacher_factory(model_name_or_path):
@@ -212,12 +275,13 @@ def train():
 
     if model_args.single_model:
         logger.info("Loading single model only...")
-        model = _teacher_factory(model_path, HF_TOKEN)
+        model = _teacher_factory(model_path)
         logger.info("Model loaded.")
     else:
         logger.info("Loading student model...")
         student_model = setup_model(
             vocab_size=len(tokenizer),
+            model_path=model_path,
         )
 
         # student_model = transformers.AutoModelForCausalLM.from_pretrained(
