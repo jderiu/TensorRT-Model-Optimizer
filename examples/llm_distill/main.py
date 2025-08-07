@@ -89,15 +89,8 @@ class TrainingArguments(transformers.TrainingArguments):
     tf32: bool = True
 
 
-def llama_text_format_func(sample):
-    p, q, r = sample.get("system_prompt"), sample["question"], sample["response"]
-    if not p:
-        text = (f"<s>[INST]   {q}[/INST]\n{r}</s>")
-    else:
-        text = (f"<s>[INST] <<SYS>>{p}<</SYS>>\n{q}[/INST]\n{r}</s>")
-    return text
-
 def llama_test_func(sample):
+    """Formatting function for Llama-style datasets."""
     return sample["text"]
 
 def save_model_old(trainer: transformers.Trainer):
