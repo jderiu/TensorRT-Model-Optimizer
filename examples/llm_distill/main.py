@@ -59,10 +59,10 @@ def setup_model(
     )
     model = LlamaForCausalLM(llama_config)
 
-    E = reduced_embeddings(model_path=model_path, hidden_size=llama_config.hidden_size)
+    #E = reduced_embeddings(model_path=model_path, hidden_size=llama_config.hidden_size)
     #E = torch.rand(model.get_input_embeddings().weight.size(), dtype=torch.float16)
-    model.get_input_embeddings().weight.data.copy_(E)
-    model.get_output_embeddings().weight.data.copy_(E)
+    #model.get_input_embeddings().weight.data.copy_(E)
+    #model.get_output_embeddings().weight.data.copy_(E)
 
     #model.set_input_embeddings(torch.nn.Embedding.from_pretrained(E, freeze=True))
     #model.set_output_embeddings(torch.nn.Linear(llama_config.hidden_size, llama_config.vocab_size, bias=False))
