@@ -196,15 +196,17 @@ def train():
     logger.info("Loading dataset...")
     if data_args.data_type == "HF":
         dset = datasets.load_dataset(data_args.dataset_name, split="train")
+        dset_splits = dset.train_test_split(train_size=25600, test_size=1700, seed=420)
     elif data_args.data_type == "JSON":
         dset = datasets.load_dataset(
             "json",
             data_files=data_args.dataset_name,
             split="train",
         )
+        dset_splits = dset.train_test_split(train_size=None, test_size=1700, seed=420)
     else:
         raise ValueError(f"Unsupported dataset type: {data_args.dataset_type}")
-    dset_splits = dset.train_test_split(train_size=25600, test_size=1700, seed=420)
+
     dset_train, dset_eval = dset_splits["train"], dset_splits["test"]
     logger.info("Dataset loaded.")
 
