@@ -338,7 +338,6 @@ def train():
         if checkpoint and not model_args.single_model:
             # ModelOpt state
             modelopt_state_path = os.path.join(checkpoint, "modelopt_state.pt")
-            print(modelopt_state_path)
             if not os.path.isfile(modelopt_state_path):
                 raise FileNotFoundError("`modelopt_state.pt` not found with checkpoint.")
             logger.info(f"Loading modelopt state from {modelopt_state_path}")
@@ -350,7 +349,7 @@ def train():
                 logger.info("Model already has ModelOpt state, skipping restore")
 
         logger.info("Beginning training...")
-        trainer.train(resume_from_checkpoint=checkpoint)
+        trainer.train(resume_from_checkpoint=checkpoint is not None)
         logger.info("Training done.")
 
     # Do evaluation
