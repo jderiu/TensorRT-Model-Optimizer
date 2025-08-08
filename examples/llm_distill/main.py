@@ -75,6 +75,7 @@ class DataArguments:
     dataset_name: str | None = "Open-Orca/OpenOrca"
     data_type: str | None = "HF"  # HF or JSON
     total_batch_size: int = 64 #add this here since training args cannot handle it
+    dev: bool = False #add this here since training args cannot handle it
 
 @dataclass
 class ModelArguments:
@@ -261,7 +262,10 @@ def train():
             data_files=data_args.dataset_name,
             split="train",
         )
-        dset_splits = dset.train_test_split(train_size=None, test_size=1700, seed=420)
+        if not data_args.dev:
+            dset_splits = dset.train_test_split(train_size=None, test_size=1700, seed=420)
+        else:
+            dset_splits = dset.train_test_split(train_size=100, test_size=100, seed=420)
     else:
         raise ValueError(f"Unsupported dataset type: {data_args.dataset_type}")
 
@@ -337,7 +341,11 @@ def train():
                 raise FileNotFoundError("`modelopt_state.pt` not found with checkpoint.")
             logger.info(f"Loading modelopt state from {modelopt_state_path}")
             modelopt_state = torch.load(modelopt_state_path, weights_only=False)
-            mto.restore_from_modelopt_state(model, modelopt_state)
+            # Check if model already has ModelOpt state
+            if not hasattr(model, '_modelopt_state'):
+                mto.restore_from_modelopt_state(model, modelopt_state)
+            else:
+                logger.info("Model already has ModelOpt state, skipping restore")
 
         logger.info("Beginning training...")
         trainer.train(resume_from_checkpoint=checkpoint)
