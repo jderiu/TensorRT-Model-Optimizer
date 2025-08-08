@@ -87,7 +87,9 @@ class ModelArguments:
 class TrainingArguments(transformers.TrainingArguments):
     do_train: bool = True
     do_eval: bool = True
-    save_strategy: str = "no"
+    save_strategy: str = "steps"
+    save_steps : int = 1500
+    save_total_limit : int = 1
     max_length: int = 1024
     optim: str = "adamw_torch"
     learning_rate: float = 1e-5
