@@ -176,7 +176,9 @@ class KDSFTTrainer(SFTTrainer):
             # reset tr_loss to zero
             tr_loss -= tr_loss
 
-            logs["loss"] =  round(tr_loss_scalar /  (self.args.gradient_accumulation_steps*(self.state.global_step - self._globalstep_last_logged)), 4)
+            denom = self.args.gradient_accumulation_steps * (self.state.global_step - self._globalstep_last_logged) * self.args.world_size
+
+            logs["loss"] =  round(tr_loss_scalar / denom, 4)
             if grad_norm is not None:
                 logs["grad_norm"] = grad_norm.item() if isinstance(grad_norm, torch.Tensor) else grad_norm
             if learning_rate is not None:
