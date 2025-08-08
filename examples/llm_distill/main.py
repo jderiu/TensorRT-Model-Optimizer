@@ -331,7 +331,7 @@ def train():
         checkpoint = training_args.resume_from_checkpoint
         if checkpoint and not model_args.single_model:
             # ModelOpt state
-            modelopt_state_path = os.path.join(os.path.dirname(checkpoint), "modelopt_state.pt")
+            modelopt_state_path = os.path.join(checkpoint, "modelopt_state.pt")
             print(modelopt_state_path)
             if not os.path.isfile(modelopt_state_path):
                 raise FileNotFoundError("`modelopt_state.pt` not found with checkpoint.")
