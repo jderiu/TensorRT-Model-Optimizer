@@ -336,14 +336,13 @@ def train():
         # Load checkpoint
         checkpoint = training_args.resume_from_checkpoint
         if checkpoint and not model_args.single_model:
-            # ModelOpt state
-            modelopt_state_path = os.path.join(checkpoint, "modelopt_state.pt")
-            if not os.path.isfile(modelopt_state_path):
-                raise FileNotFoundError("`modelopt_state.pt` not found with checkpoint.")
-            logger.info(f"Loading modelopt state from {modelopt_state_path}")
-            modelopt_state = torch.load(modelopt_state_path, weights_only=False)
             # Check if model already has ModelOpt state
             if not hasattr(model, '_modelopt_state'):
+                modelopt_state_path = os.path.join(checkpoint, "modelopt_state.pt")
+                if not os.path.isfile(modelopt_state_path):
+                    raise FileNotFoundError("`modelopt_state.pt` not found with checkpoint.")
+                logger.info(f"Loading modelopt state from {modelopt_state_path}")
+                modelopt_state = torch.load(modelopt_state_path, weights_only=False)
                 mto.restore_from_modelopt_state(model, modelopt_state)
             else:
                 logger.info("Model already has ModelOpt state, skipping restore")
