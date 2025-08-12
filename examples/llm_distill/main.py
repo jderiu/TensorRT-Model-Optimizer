@@ -32,7 +32,7 @@ from trl import SFTTrainer
 import modelopt.torch.distill as mtd
 import modelopt.torch.opt as mto
 from dotenv import load_dotenv
-from umap import UMAP
+from sklearn.decomposition import TruncatedSVD
 load_dotenv()
 
 BASE_DIR = os.getenv('BASE_DIR')
@@ -59,13 +59,14 @@ def setup_model(
     )
     model = LlamaForCausalLM(llama_config)
 
-    #E = reduced_embeddings(model_path=model_path, hidden_size=llama_config.hidden_size)
+    E = reduced_embeddings(model_path=model_path, hidden_size=llama_config.hidden_size)
+    E = torch.tensor(E, dtype=model.dtype, device=model.device)
     #E = torch.rand(model.get_input_embeddings().weight.size(), dtype=torch.float16)
     #model.get_input_embeddings().weight.data.copy_(E)
     #model.get_output_embeddings().weight.data.copy_(E)
 
-    #model.set_input_embeddings(torch.nn.Embedding.from_pretrained(E, freeze=True))
-    #model.set_output_embeddings(torch.nn.Linear(llama_config.hidden_size, llama_config.vocab_size, bias=False))
+    model.set_input_embeddings(torch.nn.Embedding.from_pretrained(E, freeze=True))
+    model.set_output_embeddings(torch.nn.Linear(llama_config.hidden_size, llama_config.vocab_size, bias=False))
 
     return model
 
@@ -137,18 +138,10 @@ def save_model(trainer: transformers.Trainer):
 
 
 def reduced_embeddings(model_path, hidden_size=128):
-    E = _teacher_factory(model_path).get_input_embeddings().weight
-    umap_model = UMAP(
-        n_components=hidden_size,
-        n_neighbors=15,
-        min_dist=0.1,
-        metric='cosine',
-        verbose=True,
-    )
-
-    reduced_embeddings = umap_model.fit_transform(E.detach().cpu().numpy())
-    reduced_embeddings = torch.tensor(reduced_embeddings, dtype=E.dtype, device=E.device)
-    return reduced_embeddings
+    E = _teacher_factory(model_path).get_input_embeddings().weight.detach().cpu().numpy()
+    pca_model = TruncatedSVD(n_components=128, n_iter=15)
+    X_new = pca_model.fit_transform(E)
+    return X_new
 
 
 class KDSFTTrainer(SFTTrainer):
